@@ -1,0 +1,5 @@
+# 1. use cmake
+# 2. associate bssid with channel
+<del>3. support switch to raw frequency and mode</del>
+# 4. read configuration from yaml
+# 5. scan while attacking
