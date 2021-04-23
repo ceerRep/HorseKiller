@@ -1,6 +1,6 @@
 channel_minimum_dbm: -80
 channel_stat_num: 5
-scan_stage_channel_time: 100
+scan_stage_channel_time: 500
 attack_stage_channel_time: 500
 scan_round: 3
 

@@ -18,6 +18,7 @@ struct AccessPoint
     int channel;
 
     std::shared_ptr<Dot11ProbeResponse> resp;
+    std::shared_ptr<Dot11Beacon> beacon;
 
     std::deque<double> signals;
 
@@ -34,6 +35,7 @@ class AccessPointManager
     std::mutex lock;
     const Configuration &config;
     std::map<HWAddress<6>, AccessPoint> aps;
+    std::map<std::string, AccessPoint*> ssid2ap_2, ssid2ap_5;
 
 public:
     AccessPointManager(const Configuration &config) : config(config) {}
@@ -58,6 +60,11 @@ public:
 
         while (ap.signals.size() > config.channel_stat_num)
             ap.signals.pop_front();
+        
+        if (channel <= 14)
+            ssid2ap_2[essid] = &ap;
+        else
+            ssid2ap_5[essid] = &ap;
     }
 
     void addResponse(Dot11ProbeResponse *resp)
@@ -69,6 +76,36 @@ public:
             auto &ap = aps[resp->addr2()];
             ap.resp = std::shared_ptr<Dot11ProbeResponse>(resp->clone());
         }
+    }
+
+    void addBeacon(Dot11Beacon *beacon)
+    {
+        std::lock_guard lg{lock};
+
+        if (aps.count(beacon->addr2()))
+        {
+            auto &ap = aps[beacon->addr2()];
+            ap.beacon = std::shared_ptr<Dot11Beacon>(beacon->clone());
+        }
+    }
+
+    AccessPoint getApByESSID(std::string essid, int band)
+    {
+        std::lock_guard lg{lock};
+
+        if (band || band == 2)
+        {
+            if (ssid2ap_2.count(essid))
+                return *ssid2ap_2[essid];
+        }
+
+        if (band || band == 5)
+        {
+            if (ssid2ap_5.count(essid))
+                return *ssid2ap_5[essid];
+        }
+
+        return AccessPoint();
     }
 
     std::map<int, std::vector<AccessPoint>> getAPs()

