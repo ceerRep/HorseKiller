@@ -293,17 +293,6 @@ extern "C"
             else
                 return 5000 + chan * 5;
             break;
-        case NL80211_BAND_6GHZ:
-            /* see 802.11ax D6.1 27.3.23.2 */
-            if (chan == 2)
-                return 5935;
-            if (chan <= 253)
-                return 5950 + chan * 5;
-            break;
-        case NL80211_BAND_60GHZ:
-            if (chan < 7)
-                return 56160 + chan * 2160;
-            break;
         default:;
         }
         return 0; /* not supported */
