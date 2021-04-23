@@ -42,7 +42,6 @@ class HorseKiller
 	int round = 0;
 	int now_channel_idx = 0;
 
-	std::string nif;
 	const Configuration &config;
 	AccessPointManager apm;
 
@@ -57,9 +56,8 @@ class HorseKiller
 	std::optional<Sniffer> psniffer;
 
 public:
-	HorseKiller(std::string interface,
-				const Configuration &config)
-		: sniffing(false), running(false), nif(interface), config(config), apm(config)
+	HorseKiller(const Configuration &config)
+		: sniffing(false), running(false), config(config), apm(config)
 	{
 	}
 
@@ -78,7 +76,7 @@ public:
 				std::cout << channel << std::endl;
 				std::cout.flush();
 
-				setChannel(nif.c_str(), channel, "HT40+");
+				setChannel(config.device.c_str(), channel, "HT40+");
 
 				auto prev_switch_time = std::chrono::high_resolution_clock::now();
 
@@ -123,11 +121,9 @@ public:
 					// uint8_t vht[] = "\x44\x00\x04\x04\x93\x00\x00\x00\x00\x00\x00\x00";
 					// radio.add_option(RadioTap::option((RadioTap::PresentFlags)(1 << 21), 12, vht)); // VHT
 
-					// sender.send(radio, nif);
-
 					auto pkt = radio.serialize();
 
-					if (pcap_inject(psniffer->get_pcap_handle(), &pkt[0], pkt.size()) == -1)
+					if (pcap_inject(psniffer->get_pcap_handle(), &pkt[0], pkt.size() - (config.drop_fcs ? 4 : 0)) == -1)
 					{
 						std::cerr << "Error injecting packet... [ " << pcap_geterr(psniffer->get_pcap_handle()) << " ]" << std::endl;
 					}
@@ -135,30 +131,11 @@ public:
 					// std::this_thread::sleep_for(std::chrono::milliseconds(2));
 				}
 			}
-
-			// std::this_thread::yield();
 		}
 	}
 
 	bool loop_func()
 	{
-		// static std::map<HWAddress<6>, std::tuple<std::string, int>> bssids_buffer;
-
-		// if (bssids_buffer.size())
-		// {
-		// 	if (bssids_lock.try_lock())
-		// 	{
-		// 		std::shared_ptr<void> unlock_defer(nullptr, [this](void *) { bssids_lock.unlock(); });
-		// 		while (bssids_buffer.size())
-		// 		{
-		// 			auto [bssid, tup] = *bssids_buffer.begin();
-		// 			auto [essid, chan] = tup;
-		// 			bssids[bssid] = essid;
-		// 			channel_ap_num[chan]++;
-		// 			bssids_buffer.erase(bssids_buffer.begin());
-		// 		}
-		// 	}
-		// }
 
 		for (; running;)
 		{
@@ -195,7 +172,7 @@ public:
 		SnifferConfiguration conf;
 		conf.set_immediate_mode(true);
 		// conf.set_rfmon(true);
-		psniffer = Sniffer(nif, conf);
+		psniffer = Sniffer(config.device, conf);
 
 		packet_sender_loop = std::thread([this]() -> void {
 			inject_loop();
@@ -214,20 +191,19 @@ public:
 
 int main(int argc, char *argv[])
 {
-	if (argc != 3)
+	if (argc != 2)
 	{
-		cout << "Usage: " << argv[0] << " <interface> <configuration>" << endl;
+		cout << "Usage: " << argv[0] << " <configuration>" << endl;
 		return -1;
 	}
 
-	std::string nif = argv[1];
-	std::string yaml_filename = argv[2];
+	std::string yaml_filename = argv[1];
 
 	YAML::Node configYAML = YAML::LoadFile(yaml_filename);
 
 	Configuration config = configYAML.as<Configuration>();
 
-	HorseKiller killer(nif, config);
+	HorseKiller killer(config);
 
 	killer.start();
 

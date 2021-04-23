@@ -4,6 +4,9 @@ scan_stage_channel_time: 0
 attack_stage_channel_time: 1000
 scan_round: 1000000
 
+device: wlan0
+drop_fcs: false
+
 target_mac: "00:11:22:33:44:55"
 
 channels:

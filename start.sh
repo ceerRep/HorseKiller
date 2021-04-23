@@ -7,5 +7,5 @@ function naive() {
 
 while true ; do
 	naive &
-	sudo ./build/deauth horse0mon configuration.yaml
+	sudo ./build/deauth configuration.yaml
 done
