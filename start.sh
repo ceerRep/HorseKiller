@@ -1,7 +1,7 @@
 #! /bin/bash
 
 function naive() {
-	sleep 1800
+	sleep 180
 	sudo killall -9 deauth
 }
 

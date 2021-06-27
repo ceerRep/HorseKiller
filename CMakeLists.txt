@@ -46,3 +46,5 @@ include_directories("${CMAKE_SOURCE_DIR}/include")
 
 add_executable (deauth src/deauth.cpp src/80211Wrapper.cpp)
 add_executable (emp src/emp.cpp src/80211Wrapper.cpp)
+add_executable (hackRegion src/hackRegion.cpp src/80211Wrapper.cpp)
+add_executable (CSA src/CSA.cpp src/80211Wrapper.cpp)

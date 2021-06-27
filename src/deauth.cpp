@@ -75,7 +75,7 @@ class HorseKiller
 	bool running;
 
 	int round = 0;
-	int now_channel_idx = 0;
+	int now_channel = 0;
 
 	const Configuration &config;
 	AccessPointManager apm;
@@ -114,6 +114,7 @@ public:
 				std::cout.flush();
 
 				setChannel(config.device.c_str(), channel, "");
+				now_channel = channel;
 
 				auto prev_switch_time = std::chrono::high_resolution_clock::now();
 
@@ -243,7 +244,9 @@ public:
 					auto signal_dbm = (signed)tap->dbm_signal();
 					auto channel = ieee80211_frequency_to_channel((signed)tap->channel_freq());
 					auto essid = beacon->ssid();
-					apm.update(bssid, essid, channel, signal_dbm);
+
+					if (channel == (int)beacon->ds_parameter_set())
+						apm.update(bssid, essid, channel, signal_dbm);
 					apm.addBeacon(beacon);
 				}
 

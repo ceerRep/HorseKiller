@@ -108,6 +108,16 @@ public:
         return AccessPoint();
     }
 
+    AccessPoint getApByBSSID(HWAddress<6> bssid)
+    {
+        std::lock_guard lg{lock};
+
+        if (auto it = aps.find(bssid); it != aps.end())
+            return it->second;
+
+        return AccessPoint();
+    }
+
     std::map<int, std::vector<AccessPoint>> getAPs()
     {
         std::lock_guard lg{lock};
