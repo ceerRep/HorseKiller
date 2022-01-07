@@ -227,7 +227,7 @@ public:
                             apm.update(bssid, essid, channel, signal_dbm);
                         apm.addBeacon(beacon);
                     }
-                    catch (field_not_present e)
+                    catch (Tins::exception_base e)
                     {
                     }
                 }
@@ -290,11 +290,11 @@ public:
         // conf.set_rfmon(true);
         psniffer = Sniffer(config.device, conf);
 
-        packet_sender_loop = std::thread([this]() -> void {
-            inject_loop();
-        });
+        packet_sender_loop = std::thread([this]() -> void
+                                         { inject_loop(); });
 
-        sniff_loop = std::thread([this]() -> void { loop_func(); });
+        sniff_loop = std::thread([this]() -> void
+                                 { loop_func(); });
     }
 
     void join()
